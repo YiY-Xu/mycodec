@@ -21,7 +21,7 @@ int main(int argc, const char** argv) {
 
     int frame_width, frame_height;
     unsigned char* frame_data;
-    if(!load_frame("/Users/yiy/Downloads/265.h265", &frame_width, &frame_height, &frame_data)) {
+    if(!load_frame("/Users/yiy/Downloads/265.mp4", &frame_width, &frame_height, &frame_data)) {
         printf("Couldn't load video frame\n");
         return 1;
     }

@@ -49,7 +49,7 @@ bool load_frame(const char* filename, int* width, int* height, unsigned char** d
         return false;
     }
 
-    if (!avcodec_parameters_to_context(av_codec_ctx, av_codec_params)) {
+    if (avcodec_parameters_to_context(av_codec_ctx, av_codec_params) < 0) {
         printf("Couldn't initialize av codec context from av codec parameters");
         return false;
     }
@@ -59,6 +59,28 @@ bool load_frame(const char* filename, int* width, int* height, unsigned char** d
         return false;
     }
 
+    AVFrame* av_frame = av_frame_alloc();
+    AVPacket* av_packet = av_packet_alloc();
+
+    //Read packets from av format context
+    int response;
+    while (av_read_frame(av_format_ctx, av_packet) >= 0) {
+        if (av_packet->stream_index != video_stream_index) {
+            continue;
+        }
+        response = avcodec_send_packet(av_codec_ctx, av_packet);
+        if ( response < 0 ) {
+            printf("Couldn't decode packet: %s\n", av_err2str(response));
+            return false;
+        }
+        response = avcodec_receive_frame(av_codec_ctx, av_frame);
+        if (response == AVERROR(EAGAIN) || response == AVERROR_EOF) {
+            continue;
+        } else if (response < 0) {
+            printf("Counldn't decode packet: %s\n", av_err2str(response));
+            return false;
+        }
+    }
 
     avformat_close_input(&av_format_ctx);
     avformat_free_context(av_format_ctx);
