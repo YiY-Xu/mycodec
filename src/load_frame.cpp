@@ -2,9 +2,10 @@ extern "C" {
     #include <libavcodec/avcodec.h>
     #include <libavformat/avformat.h>
     #include <inttypes.h>
+    #include <libswscale/swscale.h>
 }
 
-bool load_frame(const char* filename, int* width, int* height, unsigned char** data){
+bool load_frame(const char* filename, int* width_out, int* height_out, unsigned char** data_out){
 
     int k = 0;
     AVFormatContext* av_format_ctx = avformat_alloc_context();
@@ -80,11 +81,55 @@ bool load_frame(const char* filename, int* width, int* height, unsigned char** d
             printf("Counldn't decode packet: %s\n", av_err2str(response));
             return false;
         }
+        
+        av_packet_unref(av_packet);
+        break;
     }
+
+    //Decoded raw data in av_frame in YUV format
+
+    // unsigned char* data = new unsigned char[av_frame->width * av_frame->height * 3];
+    // for (int x = 0; x < av_frame->width; ++x) {
+    //     for (int y = 0; y < av_frame->height; ++y){
+    //         data[ y * av_frame->width * 3 + x * 3    ] = av_frame->data[0][ y * av_frame->linesize[0] + x];
+    //         data[ y * av_frame->width * 3 + x * 3 + 1] = av_frame->data[0][ y * av_frame->linesize[0] + x];
+    //         data[ y * av_frame->width * 3 + x * 3 + 2] = av_frame->data[0][ y * av_frame->linesize[0] + x];
+    //     }
+    // }
+
+    // *width_out = av_frame->width;
+    // *height_out = av_frame->height;
+    // *data_out = data;
+
+    uint8_t* data = new uint8_t[ av_frame->width * av_frame->height * 4 ];
+
+    SwsContext* sws_scale_ctx = sws_getContext( av_frame->width,
+                                                av_frame->height,
+                                                av_codec_ctx->pix_fmt,
+                                                av_frame->width,
+                                                av_frame->height,
+                                                AV_PIX_FMT_RGB0, // 4 bytes per each pixel 
+                                                SWS_BILINEAR,
+                                                NULL, NULL, NULL);
+            
+    if (!sws_scale_ctx) {
+        printf("Couldn't initialize SW scale contex");
+        return false;
+    }
+    uint8_t* dest[4] = { data, NULL, NULL, NULL };
+    int dest_linesize[4] = { av_frame->width * 4, 0, 0, 0};
+    sws_scale(sws_scale_ctx, av_frame->data, av_frame->linesize, 0, av_frame->height, dest, dest_linesize);
+    sws_freeContext(sws_scale_ctx);
+
+    *width_out = av_frame->width;
+    *height_out = av_frame->height;
+    *data_out = data;
 
     avformat_close_input(&av_format_ctx);
     avformat_free_context(av_format_ctx);
+    av_frame_free(&av_frame);
+    av_packet_free(&av_packet);
     avcodec_free_context(&av_codec_ctx);
     
-    return false;
+    return true;
 }
